@@ -1,0 +1,99 @@
+#!/bin/sh
+
+PROJECT_NAME=tttAppNamettt
+
+help()
+{
+    echo " SYNOPSIS:"
+    echo "   ./configure [clean] [Debug|Release|RelWithDebInfo|MinSizeRel] [...]"
+    echo ""
+    echo " DESCRIPTION:"
+    echo "   This script generates the CMake build scripts. The precise behavior of this"
+    echo "   script depends on the arguments passed:"
+    echo ""
+    echo "   1. If called without arguments, CMake scripts for a Release (optimized) build"
+    echo "      of ${PROJECT_NAME} will be generated in the directory cmake-build. Additional"
+    echo "      arguments will be passed to and interpreted by the CMake generator."
+    echo ""
+    echo "   2. If called with the single argument from the following list:"
+    echo "         Debug, Release, RelWithDebInfo, MinSizeRel,"
+    echo "      scripts for the corresponding build of ${PROJECT_NAME} will be generated in"
+    echo "      cmake-build. See the CMake documentation (CMAKE_BUILD_TYPE) for more"
+    echo "      information about the available build types."
+    echo ""
+    echo "   3. If called with the single argument 'clean', the CMake build directory"
+    echo "      (build) will be removed and the script will stop. If additional"
+    echo "      arguments are supplied after 'clean', after removing the build directory,"
+    echo "      the script will behave as in case 2."
+    echo ""
+    echo " EXAMPLES:"
+    echo "   ./configure.sh clean Release"
+    echo "      regenerate the CMake scripts for a Release build of ${PROJECT_NAME} from scratch"
+    echo "      (invalidating CMake cache that stores previously used settings)"
+    echo ""
+    echo "   ./configure.sh -DCMAKE_VERBOSE_MAKEFILE=1"
+    echo "      generate the CMake scripts for a Release build of ${PROJECT_NAME} (using CMake"
+    echo "      cache if available); the 'make' command will be verbose_info (showing, e.g.,"
+    echo "      what compiler flags are being used)"
+    echo ""
+    echo "   ./configure.sh Debug -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=\$PWD/bin/Debug"
+    echo "      generate the CMake scripts for a Debug build of ${PROJECT_NAME} (using CMake"
+    echo "      cache if available); the 'make' command will place the ${PROJECT_NAME} executable"
+    echo "      into the specified directory (instead of the default 'bin' subdirectory of"
+    echo "      ${PROJECT_NAME} root directory)."
+    echo ""
+}
+
+is_cmake_build_type() {
+  for bt in Debug Release RelWithDebInfo MinSizeRel; do
+    if [ "$1" = $bt ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+CMAKE_ARGS=                 # additional CMake arguments
+DO_CLEAN="No"               # if yes, remove the cmake-build directory before generating CMake
+DO_CMAKE="Yes"              # by default, run CMake generator after configuring
+CMAKE_BUILD_TYPE="Release"  # by default, configure the Release build
+
+# Go through all arguments
+for arg in "$@"; do
+  if [ "$arg" = "clean" ]; then
+    # The build directory will be cleaned
+    DO_CLEAN="Yes"
+
+    if [ $# -eq 1 ]; then
+      # If "clean" is the only argument passed
+      DO_CMAKE="No"
+    fi
+
+  elif [ "$arg" = "-h" ]; then
+    help
+    exit
+
+  elif is_cmake_build_type "$arg"; then
+    CMAKE_BUILD_TYPE="$arg"
+
+  else
+    # Additional CMake arguments (we handle -DCMAKE_BUILD_TYPE ourselves)
+    case "$arg" in
+      -DCMAKE_BUILD_TYPE*) CMAKE_BUILD_TYPE=$(cut -d'=' -f1 "$arg") ;;
+      *)  CMAKE_ARGS="${CMAKE_ARGS} ${arg}" ;;
+    esac
+  fi
+
+done
+
+if [ $DO_CLEAN = "Yes" ]; then
+  # If cmake-build directory exists, remove it
+  if [ -d "cmake-build" ]; then
+    rm -r cmake-build
+  fi
+fi
+
+if [ $DO_CMAKE = "Yes" ]; then
+  mkdir -p cmake-build && cd cmake-build && \
+  cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} ${CMAKE_ARGS} ../ && cd ..
+fi
